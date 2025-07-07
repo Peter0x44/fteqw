@@ -481,7 +481,7 @@ ifeq ($(FTE_TARGET),win64)
 endif
 #statically link openssl on the above systems (instead of depending on system libs)
 ifneq ($(OSSL_ARCH),)
-OSSL_VERSION=3.0.1
+OSSL_VERSION=3.5.1
 #../engine/libs-$(ARCH)/openssl-$(OSSL_VERSION).tar.gz:
 ../engine/openssl-$(OSSL_VERSION).tar.gz:
 	wget -O $@ -N https://github.com/openssl/openssl/archive/refs/tags/openssl-$(OSSL_VERSION).tar.gz
@@ -496,6 +496,9 @@ OPENSSL_AVAILABLE=1
 endif
 
 OPENSSL_LDCFLAGS?=`$(PKGCONFIG) --libs --cflags openssl`
+ifeq ($(findstring mingw,$(OSSL_ARCH)),mingw)
+    OPENSSL_LDCFLAGS+= -lcrypt32 #if we want to import root certs from the microsoft store then we also need to link against this lib. This saves bundling lots of extra root certs.
+endif
 OPENSSL_AVAILABLE?=$(shell $(OPENSSLPKGPATH) $(PKGCONFIG) --atleast-version=3.0.0 openssl && echo 1)
 $(PLUG_PREFIX)openssl$(PLUG_NATIVE_EXT): net_ssl_openssl.c plugin.c
 	$(CC) -s $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(OPENSSL_LDCFLAGS)

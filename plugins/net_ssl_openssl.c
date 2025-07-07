@@ -542,6 +542,12 @@ static vfsfile_t *OSSL_OpenVFS(const char *hostname, vfsfile_t *source, qboolean
 			SSL_CTX_set_session_cache_mode(n->ctx, SSL_SESS_CACHE_OFF);
 
 			SSL_CTX_set_default_verify_paths(n->ctx);
+#if defined(_WIN32) && defined(OPENSSL_VERSION_PREREQ)
+#if OPENSSL_VERSION_PREREQ(3,2)
+			SSL_CTX_load_verify_store(n->ctx, "org.openssl.winstore://");	//added 3.2+ to use the (microsoft) system store instead of bundled (or not) root certs
+#endif
+#endif
+
 			SSL_CTX_set_verify(n->ctx, SSL_VERIFY_PEER, OSSL_Verify_Peer);
 			SSL_CTX_set_verify_depth(n->ctx, 5);
 			SSL_CTX_set_options(n->ctx, SSL_OP_NO_COMPRESSION);	//compression allows guessing the contents of the stream somehow.
