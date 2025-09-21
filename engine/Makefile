@@ -2431,9 +2431,9 @@ libs-$(ARCH)/libBulletDynamics.a:
 # OpenSSL binary package extraction for Windows cross-compilation
 libs-$(ARCH)/openssl/libssl.a:
 ifneq (,$(findstring win32,$(FTE_TARGET)))
-	test -f ../tools/binarylibs/mingw-w64-i686-openssl-3.5.3-1-any.pkg.tar.zst && (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar --zstd -xf ../../tools/binarylibs/mingw-w64-i686-openssl-3.5.3-1-any.pkg.tar.zst mingw32/lib/libssl.a mingw32/lib/libcrypto.a mingw32/include/openssl/ && mkdir -p openssl && mv mingw32/lib/*.a openssl/ && mv mingw32/include/* . && rm -rf mingw32)
+	test -f ../tools/binarylibs/mingw-w64-i686-openssl-3.5.3-1-any.pkg.tar.zst && (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && echo "Extracting OpenSSL i686 package..." && tar --zstd -xvf ../../tools/binarylibs/mingw-w64-i686-openssl-3.5.3-1-any.pkg.tar.zst mingw32/lib/libssl.a mingw32/lib/libcrypto.a mingw32/include/openssl/ && mkdir -p openssl && mv mingw32/lib/*.a openssl/ && cp -r mingw32/include/* . && rm -rf mingw32 && echo "OpenSSL i686 extraction complete")
 else ifneq (,$(findstring win64,$(FTE_TARGET)))
-	test -f ../tools/binarylibs/mingw-w64-x86_64-openssl-3.5.3-1-any.pkg.tar.zst && (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar --zstd -xf ../../tools/binarylibs/mingw-w64-x86_64-openssl-3.5.3-1-any.pkg.tar.zst mingw64/lib/libssl.a mingw64/lib/libcrypto.a mingw64/include/openssl/ && mkdir -p openssl && mv mingw64/lib/*.a openssl/ && mv mingw64/include/* . && rm -rf mingw64)
+	test -f ../tools/binarylibs/mingw-w64-x86_64-openssl-3.5.3-1-any.pkg.tar.zst && (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && echo "Extracting OpenSSL x86_64 package..." && tar --zstd -xvf ../../tools/binarylibs/mingw-w64-x86_64-openssl-3.5.3-1-any.pkg.tar.zst mingw64/lib/libssl.a mingw64/lib/libcrypto.a mingw64/include/openssl/ && mkdir -p openssl && mv mingw64/lib/*.a openssl/ && cp -r mingw64/include/* . && rm -rf mingw64 && echo "OpenSSL x86_64 extraction complete")
 endif
 
 libs-$(ARCH)/vulkan/vulkan.h:
