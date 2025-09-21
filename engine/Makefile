@@ -1083,18 +1083,9 @@ ifeq (1,$(LINK_EZHUD))
 endif
 ifeq (1,$(LINK_OPENSSL))
     # Use extracted binary packages for Windows cross-compilation
-    ifneq (,$(findstring win32,$(FTE_TARGET)))
-        # Use 32-bit OpenSSL binary package
-        ifeq (1,$(shell test -f libs-$(ARCH)/openssl/libssl.a && echo 1))
-            VPATH := $(VPATH) : $(BASE_DIR)/../plugins
-            ALL_CFLAGS+=-DSTATIC_OPENSSL -Ilibs-$(ARCH)/openssl/include
-            COMMON_OBJS += \
-                net_ssl_openssl.o
-            COMMONLDDEPS+=libs-$(ARCH)/openssl/libssl.a libs-$(ARCH)/openssl/libcrypto.a -lws2_32 -lcrypt32
-        endif
-    else ifneq (,$(findstring win64,$(FTE_TARGET)))
-        # Use 64-bit OpenSSL binary package  
-        ifeq (1,$(shell test -f libs-$(ARCH)/openssl/libssl.a && echo 1))
+    ifneq (,$(findstring win,$(FTE_TARGET)))
+        # Check if we have OpenSSL libraries extracted for Windows builds
+        ifneq (,$(wildcard libs-$(ARCH)/openssl/libssl.a))
             VPATH := $(VPATH) : $(BASE_DIR)/../plugins
             ALL_CFLAGS+=-DSTATIC_OPENSSL -Ilibs-$(ARCH)/openssl/include
             COMMON_OBJS += \
@@ -2439,9 +2430,9 @@ libs-$(ARCH)/libBulletDynamics.a:
 
 # OpenSSL binary package extraction for Windows cross-compilation
 libs-$(ARCH)/openssl/libssl.a:
-ifeq ($(findstring win32,$(FTE_TARGET)),win32)
+ifneq (,$(findstring win32,$(FTE_TARGET)))
 	test -f ../tools/binarylibs/mingw-w64-i686-openssl-3.5.3-1-any.pkg.tar.zst && (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && zstd -d -c ../../tools/binarylibs/mingw-w64-i686-openssl-3.5.3-1-any.pkg.tar.zst | tar -xf - mingw32/lib/libssl.a mingw32/lib/libcrypto.a mingw32/include/openssl/ && mkdir -p openssl && mv mingw32/lib/* openssl/ && mv mingw32/include/openssl openssl/ && rm -rf mingw32)
-else ifneq ($(findstring win64,$(FTE_TARGET)),)
+else ifneq (,$(findstring win64,$(FTE_TARGET)))
 	test -f ../tools/binarylibs/mingw-w64-x86_64-openssl-3.5.3-1-any.pkg.tar.zst && (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && zstd -d -c ../../tools/binarylibs/mingw-w64-x86_64-openssl-3.5.3-1-any.pkg.tar.zst | tar -xf - mingw64/lib/libssl.a mingw64/lib/libcrypto.a mingw64/include/openssl/ && mkdir -p openssl && mv mingw64/lib/* openssl/ && mv mingw64/include/openssl openssl/ && rm -rf mingw64)
 endif
 
