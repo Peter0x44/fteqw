@@ -1082,13 +1082,26 @@ ifeq (1,$(LINK_EZHUD))
 		hud_editor.o
 endif
 ifeq (1,$(LINK_OPENSSL))
-    ifeq (1,$(shell $(PKGCONFIG) --atleast-version 3 openssl && echo 1))	#must exist... and if its not openssl3 then its not gpl3-compatible so refuse to use it.
-        VPATH := $(VPATH) : $(BASE_DIR)/../plugins
-        ALL_CFLAGS+=-DSTATIC_OPENSSL #let the plugins code know it needs to add the appropriate entry.
-        COMMON_OBJS += \
-            net_ssl_openssl.o
-        ALL_DFLAGS+=$(shell $(PKGCONFIG) openssl --cflags --silence-errors)
-        COMMONLDDEPS+=$(shell $(PKGCONFIG) openssl --libs --silence-errors)
+    # Use extracted binary packages for Windows cross-compilation
+    ifneq (,$(findstring win,$(FTE_TARGET)))
+        # Check if we have OpenSSL libraries extracted for Windows builds
+        ifneq (,$(wildcard libs-$(ARCH)/openssl/libssl.a))
+            VPATH := $(VPATH) : $(BASE_DIR)/../plugins
+            ALL_CFLAGS+=-DSTATIC_OPENSSL -I$(ARCHLIBS)
+            COMMON_OBJS += \
+                net_ssl_openssl.o
+            COMMONLDDEPS+=libs-$(ARCH)/openssl/libssl.a libs-$(ARCH)/openssl/libcrypto.a -lws2_32 -lcrypt32
+        endif
+    else
+        # Use system OpenSSL for other platforms
+        ifeq (1,$(shell $(PKGCONFIG) --atleast-version 3 openssl && echo 1))	#must exist... and if its not openssl3 then its not gpl3-compatible so refuse to use it.
+            VPATH := $(VPATH) : $(BASE_DIR)/../plugins
+            ALL_CFLAGS+=-DSTATIC_OPENSSL #let the plugins code know it needs to add the appropriate entry.
+            COMMON_OBJS += \
+                net_ssl_openssl.o
+            ALL_DFLAGS+=$(shell $(PKGCONFIG) openssl --cflags --silence-errors)
+            COMMONLDDEPS+=$(shell $(PKGCONFIG) openssl --libs --silence-errors)
+        endif
     endif
 endif
 
@@ -2415,6 +2428,14 @@ libs-$(ARCH)/libBulletDynamics.a:
 	test -f bullet3-$(BULLETVER).tar.gz || wget https://github.com/bulletphysics/bullet3/archive/$(BULLETVER).tar.gz -O bullet3-$(BULLETVER).tar.gz
 	test -f libs-$(ARCH)/libBulletDynamics.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../bullet3-$(BULLETVER).tar.gz && cd bullet3-$(BULLETVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) $(DO_CMAKE) . && $(TOOLOVERRIDES) $(MAKE) LinearMath BulletDynamics BulletCollision && cp src/LinearMath/libLinearMath.a src/BulletDynamics/libBulletDynamics.a src/BulletCollision/libBulletCollision.a src/btBulletCollisionCommon.h src/btBulletDynamicsCommon.h ..)
 
+# OpenSSL binary package extraction for Windows cross-compilation
+libs-$(ARCH)/openssl/libssl.a:
+ifneq (,$(findstring win32,$(FTE_TARGET)))
+	test -f ../tools/binarylibs/mingw-w64-i686-openssl-3.5.3-1-any.pkg.tar.zst && (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && echo "Extracting OpenSSL i686 package..." && tar --zstd -xvf ../../tools/binarylibs/mingw-w64-i686-openssl-3.5.3-1-any.pkg.tar.zst mingw32/lib/libssl.a mingw32/lib/libcrypto.a mingw32/include/openssl/ && mkdir -p openssl && mv mingw32/lib/*.a openssl/ && cp -r mingw32/include/* . && rm -rf mingw32 && echo "OpenSSL i686 extraction complete")
+else ifneq (,$(findstring win64,$(FTE_TARGET)))
+	test -f ../tools/binarylibs/mingw-w64-x86_64-openssl-3.5.3-1-any.pkg.tar.zst && (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && echo "Extracting OpenSSL x86_64 package..." && tar --zstd -xvf ../../tools/binarylibs/mingw-w64-x86_64-openssl-3.5.3-1-any.pkg.tar.zst mingw64/lib/libssl.a mingw64/lib/libcrypto.a mingw64/include/openssl/ && mkdir -p openssl && mv mingw64/lib/*.a openssl/ && cp -r mingw64/include/* . && rm -rf mingw64 && echo "OpenSSL x86_64 extraction complete")
+endif
+
 libs-$(ARCH)/vulkan/vulkan.h:
 	test -f vulkan-sdk-$(VULKANVER).tar.gz || wget https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/vulkan-sdk-$(VULKANVER).tar.gz  
 	cd libs-$(ARCH) && tar -xvzf ../vulkan-sdk-$(VULKANVER).tar.gz --strip-components=2 Vulkan-Headers-vulkan-sdk-$(VULKANVER)/include/
@@ -2423,6 +2444,10 @@ ifeq ($(FTE_TARGET),web)
 makelibs: libs-$(ARCH)/libz.a $(MAKELIBS)
 else
 MAKELIBS+=libs-$(ARCH)/vulkan/vulkan.h
+# Add OpenSSL to makelibs for Windows builds
+ifneq (,$(findstring win,$(FTE_TARGET)))
+MAKELIBS+=libs-$(ARCH)/openssl/libssl.a
+endif
 makelibs: libs-$(ARCH)/libjpeg.a libs-$(ARCH)/libz9.a libs-$(ARCH)/libz.a libs-$(ARCH)/libpng.a libs-$(ARCH)/libogg.a libs-$(ARCH)/libvorbis.a libs-$(ARCH)/libopus.a libs-$(ARCH)/libspeex.a libs-$(ARCH)/libspeexdsp.a libs-$(ARCH)/libfreetype.a $(MAKELIBS)
 endif
 

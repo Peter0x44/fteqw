@@ -219,5 +219,6 @@
 -DLIBJPEG_STATIC 
 -DLIBPNG_STATIC 
 -DOPUS_STATIC
+-DLINK_OPENSSL			//Statically link OpenSSL for TLS 1.2+ support on Windows
 //-Os		//optimise for size instead of speed. less cpu cache needed means that its sometimes faster anyway.
 #endif
