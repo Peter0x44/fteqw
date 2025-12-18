@@ -433,17 +433,113 @@ static BIO *OSSL_BioFromFile(vfsfile_t *f)
 
 	return b;
 }
-static void OSSL_OpenPrivKey(void)
+static void OSSL_LoadOrGenerateCert(void)
 {
-	BIO *bio = OSSL_BioFromFile(OSSL_OpenPrivKeyFile(NULL,0));
-	vhost.privatekey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
-	BIO_free(bio);
-}
-static void OSSL_OpenPubKey(void)
-{
-	BIO *bio = OSSL_BioFromFile(OSSL_OpenPubKeyFile(NULL,0));
-	vhost.servercert = PEM_read_bio_X509(bio, NULL, NULL, NULL);
-	BIO_free(bio);
+	vfsfile_t *privf = OSSL_OpenPrivKeyFile(NULL, 0);
+	vfsfile_t *pubf = OSSL_OpenPubKeyFile(NULL, 0);
+	BIO *bio;
+
+	if (!privf || !pubf)
+	{	//not found? generate a new one.
+		char nativename[MAX_OSPATH];
+		EVP_PKEY *pkey;
+		X509 *x509;
+
+		if (privf)
+		{
+			VFS_CLOSE(privf);
+			privf = NULL;
+		}
+		if (pubf)
+		{
+			VFS_CLOSE(pubf);
+			pubf = NULL;
+		}
+
+		Con_Printf("Generating new OpenSSL certificate...\n");
+
+		//generate private key
+#if OPENSSL_API_LEVEL >= 30000
+		pkey = EVP_RSA_gen(2048);
+#else
+		{
+			RSA *rsa = RSA_new();
+			BIGNUM *pkexponent = BN_new();
+			BN_set_word(pkexponent, RSA_F4);
+			RSA_generate_key_ex(rsa, 2048, pkexponent, NULL);
+			BN_free(pkexponent);
+			pkey = EVP_PKEY_new();
+			EVP_PKEY_assign_RSA(pkey, rsa);
+		}
+#endif
+
+		//generate certificate
+		x509 = X509_new();
+		ASN1_INTEGER_set(X509_get_serialNumber(x509), (long)time(NULL));
+		X509_gmtime_adj(X509_get_notBefore(x509), -1);
+		X509_gmtime_adj(X509_get_notAfter(x509), 10*365*24*60*60);	//10 years validity
+		X509_set_pubkey(x509, pkey);
+
+		{
+			X509_NAME *name = X509_get_subject_name(x509);
+			X509_NAME_add_entry_by_txt(name, "O", MBSTRING_ASC, (const unsigned char*)"FTE QuakeWorld", -1, -1, 0);
+			X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (const unsigned char*)"localhost", -1, -1, 0);
+			X509_set_issuer_name(x509, name);
+		}
+
+		X509_sign(x509, pkey, EVP_sha256());
+
+		//write private key to disk
+		privf = OSSL_OpenPrivKeyFile(nativename, sizeof(nativename));
+		if (privf)
+		{
+			bio = BIO_new(BIO_s_mem());
+			if (PEM_write_bio_PrivateKey(bio, pkey, NULL, NULL, 0, NULL, NULL))
+			{
+				char buf[4096];
+				int len;
+				while ((len = BIO_read(bio, buf, sizeof(buf))) > 0)
+					VFS_WRITE(privf, buf, len);
+				Con_Printf("Wrote %s\n", nativename);
+			}
+			BIO_free(bio);
+			VFS_CLOSE(privf);
+		}
+
+		//write certificate to disk
+		pubf = OSSL_OpenPubKeyFile(nativename, sizeof(nativename));
+		if (pubf)
+		{
+			bio = BIO_new(BIO_s_mem());
+			if (PEM_write_bio_X509(bio, x509))
+			{
+				char buf[4096];
+				int len;
+				while ((len = BIO_read(bio, buf, sizeof(buf))) > 0)
+					VFS_WRITE(pubf, buf, len);
+				Con_Printf("Wrote %s\n", nativename);
+			}
+			BIO_free(bio);
+			VFS_CLOSE(pubf);
+		}
+
+		//store in vhost
+		vhost.privatekey = pkey;
+		vhost.servercert = x509;
+
+		Con_Printf("Certificate generated\n");
+	}
+	else
+	{
+		//load existing files
+		bio = OSSL_BioFromFile(privf);
+		vhost.privatekey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+		BIO_free(bio);
+
+		bio = OSSL_BioFromFile(pubf);
+		vhost.servercert = PEM_read_bio_X509(bio, NULL, NULL, NULL);
+		BIO_free(bio);
+	}
 }
 
 static char *OSSL_SetCertificateName(char *out, const char *hostname)
@@ -1170,8 +1266,7 @@ static qboolean OSSL_Init(void)
 //	OPENSSL_config(NULL);
 	ERR_print_errors_cb(OSSL_PrintError_CB, NULL);
 
-	OSSL_OpenPubKey();
-	OSSL_OpenPrivKey();
+	OSSL_LoadOrGenerateCert();
 
 	biometh_vfs = BIO_meth_new(BIO_get_new_index()|BIO_TYPE_SOURCE_SINK|BIO_TYPE_DESCRIPTOR, "fte_vfs");
 	if (biometh_vfs)
